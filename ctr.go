@@ -2,6 +2,7 @@ package ctr
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"fmt"
 	"image"
@@ -23,8 +24,9 @@ import (
 
 // Server 服务
 type Server struct {
-	Port   int                // 端口
-	router *httprouter.Router // 路由
+	Port     int                // 端口
+	router   *httprouter.Router // 路由
+	httpWare *http.Server
 }
 
 // ClientInfo 客户端信息
@@ -221,25 +223,35 @@ const (
 	shutdownAction
 )
 
+var firstRunHTTP = true
+
 // StartServer 启动服务
 func (s *Server) StartServer() error {
-	s.initServer()
-	var p = s.getAddr()
-	fmt.Printf("server run %s\n", p)
-	http.ListenAndServe(p, s.router)
+	if firstRunHTTP {
+		s.initServer()
+		var p = s.getAddr()
+		fmt.Printf("server run %s\n", p)
+		s.httpWare = &http.Server{Addr: p, Handler: s.router}
+		firstRunHTTP = false
+	}
+	err := s.httpWare.ListenAndServe()
+	fmt.Println("err", err)
 	return nil
 }
 
 // StopServer 暂停服务
-//
-// TODO
 func (s *Server) StopServer() bool {
-	return false
+	if s.httpWare == nil {
+		return false
+	}
+	// return s.httpWare.Close() == nil
+	return s.httpWare.Shutdown(context.Background()) == nil
 }
 
 // RestartServer 重启服务
 //
 // TODO
-func (s *Server) RestartServer() error {
-	return nil
+func (s *Server) RestartServer() {
+	s.StopServer()
+	s.StartServer()
 }
